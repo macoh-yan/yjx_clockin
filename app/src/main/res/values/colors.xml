@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <!-- Fully transparent, equivalent to 0x00000000 -->
+    <color name="transparent">#00000000</color>
+    <color name="colorOnSurface">#1E1E1E</color>
+
+    <!-- 添加以下颜色以解决资源链接错误 -->
+    <color name="colorPrimary">#2196F3</color>
+    <color name="colorPrimaryDark">#1976D2</color>
+    <color name="colorAccent">#FF4081</color>
+    <color name="hint_text_color">#757575</color>
+    <color name="error_red">#E74C3C</color>
+    <color name="green">#00FF00</color>
+    <color name="fence_stroke">#FF2196F3</color>   <!-- 蓝色边框 -->
+    <color name="fence_fill">#332196F3</color>     <!-- 半透明蓝色填充 -->
+    <color name="titleBar">#E5E5EA</color>
+    <color name="progress_text">#1E3A8A</color>   <!-- 深蓝色 -->
+</resources>

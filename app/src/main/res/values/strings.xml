@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">亿杰智企</string>
+    <string name="clock_in">打卡</string>
+    <string name="Workbench">工作台</string>
+    <string name="my">我的</string>
+    <string name="Login">登录</string>
+    <string name="name">欢迎：</string>
+    <string name="department">部门：</string>
+    <string name="software_name">亿杰智企</string>
+    <string name="Employee_ID">员工编号</string>
+    <string name="Employee_password">密码</string>
+    <string name="Employee_register">登录</string>
+    <string name="clock_on">上班打卡</string>
+    <string name="clock_out">下班打卡</string>
+    <string name="Today_record">今日打卡记录</string>
+    <string name="AttendanceCheckin">考勤打卡</string>
+    <string name="affiche">根据考勤制度，严禁员工代打卡，一经发现严肃处理！</string>
+</resources>
