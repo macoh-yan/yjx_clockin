@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
-import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
 import android.view.View
@@ -13,6 +12,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import com.example.yjx_clockin.databinding.ActivityLoginBinding
 import com.example.yjx_clockin.utils.ApiService
+import com.example.yjx_clockin.utils.Constants
+import com.example.yjx_clockin.utils.DeviceUtils
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
@@ -52,10 +53,10 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun loadSavedCredentials() {
-        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        val savedEmpId = prefs.getString("saved_emp_id", "")
-        val savedPassword = prefs.getString("saved_password", "")
-        val isRemembered = prefs.getBoolean("remember_password", false)
+        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+        val savedEmpId = prefs.getString(Constants.KEY_SAVED_EMP_ID, "")
+        val savedPassword = prefs.getString(Constants.KEY_SAVED_PASSWORD, "")
+        val isRemembered = prefs.getBoolean(Constants.KEY_REMEMBER_PASSWORD, false)
 
         if (isRemembered && !savedEmpId.isNullOrEmpty() && !savedPassword.isNullOrEmpty()) {
             binding.etEmpId.setText(savedEmpId)
@@ -65,16 +66,16 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun saveCredentials(empId: String, password: String) {
-        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
         val editor = prefs.edit()
         if (binding.cbRemember.isChecked) {
-            editor.putString("saved_emp_id", empId)
-            editor.putString("saved_password", password)
-            editor.putBoolean("remember_password", true)
+            editor.putString(Constants.KEY_SAVED_EMP_ID, empId)
+            editor.putString(Constants.KEY_SAVED_PASSWORD, password)
+            editor.putBoolean(Constants.KEY_REMEMBER_PASSWORD, true)
         } else {
-            editor.remove("saved_emp_id")
-            editor.remove("saved_password")
-            editor.putBoolean("remember_password", false)
+            editor.remove(Constants.KEY_SAVED_EMP_ID)
+            editor.remove(Constants.KEY_SAVED_PASSWORD)
+            editor.putBoolean(Constants.KEY_REMEMBER_PASSWORD, false)
         }
         editor.apply()
     }
@@ -91,28 +92,19 @@ class LoginActivity : AppCompatActivity() {
         return true
     }
 
-    @SuppressLint("HardwareIds")
-    private fun getAndroidDeviceId(): String {
-        return try {
-            Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown_device"
-        } catch (e: Exception) {
-            "unknown_device"
-        }
-    }
-
     /**
      * 检查设备绑定状态，必要时自动绑定
      */
     private fun checkAndBindDevice(empId: String, password: String) {
-        val deviceId = getAndroidDeviceId()
-        if (deviceId.isEmpty() || deviceId == "unknown_device") {
+        val deviceId = DeviceUtils.getAndroidDeviceId(this)
+        if (!DeviceUtils.isDeviceIdValid(deviceId)) {
             showError("无法获取设备ID，请检查系统设置")
             return
         }
 
-        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        val cachedBound = prefs.getBoolean("device_bound", false)
-        val cachedDeviceId = prefs.getString("device_id", "")
+        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+        val cachedBound = prefs.getBoolean(Constants.KEY_DEVICE_BOUND, false)
+        val cachedDeviceId = prefs.getString(Constants.KEY_DEVICE_ID, "")
 
         // 快速缓存命中
         if (cachedBound && cachedDeviceId == deviceId) {
@@ -137,8 +129,8 @@ class LoginActivity : AppCompatActivity() {
                     autoBindDevice(empId, deviceId) { success ->
                         if (success) {
                             // 绑定成功，保存缓存并登录
-                            prefs.edit().putBoolean("device_bound", true)
-                                .putString("device_id", deviceId).apply()
+                            prefs.edit().putBoolean(Constants.KEY_DEVICE_BOUND, true)
+                                .putString(Constants.KEY_DEVICE_ID, deviceId).apply()
                             performLogin(empId, password)
                         } else {
                             showError("设备绑定失败，请重试")
@@ -146,8 +138,8 @@ class LoginActivity : AppCompatActivity() {
                     }
                 } else if (boundDeviceId == deviceId) {
                     // 已绑定且一致，更新本地缓存并登录
-                    prefs.edit().putBoolean("device_bound", true)
-                        .putString("device_id", deviceId).apply()
+                    prefs.edit().putBoolean(Constants.KEY_DEVICE_BOUND, true)
+                        .putString(Constants.KEY_DEVICE_ID, deviceId).apply()
                     performLogin(empId, password)
                 } else {
                     // 已绑定其他设备，拒绝登录
@@ -192,7 +184,7 @@ class LoginActivity : AppCompatActivity() {
 
     private fun performLogin(empId: String, password: String) {
         setLoading(true)
-        val deviceId = getAndroidDeviceId()
+        val deviceId = DeviceUtils.getAndroidDeviceId(this)
 
         ApiService.login(empId, password, deviceId) { success, json, cookie ->
             runOnUiThread {
@@ -204,14 +196,14 @@ class LoginActivity : AppCompatActivity() {
                     val name = data?.optString("name") ?: ""
                     Log.e("===LoginActivity的Token", token)
 
-                    val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+                    val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
                     val editor = prefs.edit()
-                    editor.putString("token", token)
-                    editor.putString("emp_id", empIdFromData)
-                    editor.putString("emp_name", name)
+                    editor.putString(Constants.KEY_TOKEN, token)
+                    editor.putString(Constants.KEY_EMP_ID, empIdFromData)
+                    editor.putString(Constants.KEY_EMP_NAME, name)
                     if (!cookie.isNullOrEmpty()) {
                         val cookieValue = cookie.split(";").firstOrNull()?.trim() ?: cookie
-                        editor.putString("cookie", cookieValue)
+                        editor.putString(Constants.KEY_COOKIE, cookieValue)
                     }
                     editor.apply()
 

@@ -1,5 +1,6 @@
 package com.example.yjx_clockin.utils
 
+import com.example.yjx_clockin.model.MenuButton
 import okhttp3.*
 import org.json.JSONObject
 import java.io.IOException
@@ -9,7 +10,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 
 object ApiService {
-    const val BASE_URL = "http://117.36.73.158:5000"
+    const val BASE_URL = Constants.BASE_URL
     private const val API_URL_EMPLOYEES = "$BASE_URL/api/employees"
     private val client = OkHttpClient.Builder()
         .addInterceptor { chain ->
@@ -170,8 +171,7 @@ object ApiService {
         })
     }
 
-    // ==================== 2. 获取移动端菜单（/employee/mobile） ====================
-    data class MenuButton(val name: String, val icon: String, val url: String)
+    // ==================== 3. 获取移动端菜单（/employee/mobile） ====================
 
     fun getMobileMenu(onResult: (List<MenuButton>) -> Unit) {
         val url = "$BASE_URL/employee/mobile"

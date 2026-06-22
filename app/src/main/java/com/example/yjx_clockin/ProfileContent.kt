@@ -3,9 +3,7 @@ package com.example.yjx_clockin
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.graphics.BitmapFactory
 import android.os.Bundle
-import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -16,7 +14,10 @@ import android.widget.Toast
 import androidx.core.content.edit
 import androidx.fragment.app.Fragment
 import com.example.yjx_clockin.utils.ApiService
+import com.example.yjx_clockin.utils.Constants
+import com.example.yjx_clockin.utils.DeviceUtils
 import com.example.yjx_clockin.utils.DialogUtils
+import com.example.yjx_clockin.utils.ImageUtils
 import de.hdodenhof.circleimageview.CircleImageView
 
 class ProfileContent : Fragment() {
@@ -78,8 +79,8 @@ class ProfileContent : Fragment() {
      * 从本地 SharedPreferences 加载缓存信息，快速展示
      */
     private fun loadUserInfoFromLocal() {
-        val name = prefs.getString("emp_name", "")
-        val empId = prefs.getString("emp_id", "")
+        val name = prefs.getString(Constants.KEY_EMP_NAME, "")
+        val empId = prefs.getString(Constants.KEY_EMP_ID, "")
         tvUsername.text = if (name.isNullOrEmpty()) "员工" else name
         tvEmpId.text = empId ?: "--"
         tvDepartment.text = "加载中..."
@@ -88,9 +89,9 @@ class ProfileContent : Fragment() {
         tvHireDate.text = "--"
 
         // 显示设备绑定状态
-        val deviceId = getAndroidDeviceId()
-        val cachedBound = prefs.getBoolean("device_bound", false)
-        val cachedDeviceId = prefs.getString("device_id", "")
+        val deviceId = DeviceUtils.getAndroidDeviceId(requireContext())
+        val cachedBound = prefs.getBoolean(Constants.KEY_DEVICE_BOUND, false)
+        val cachedDeviceId = prefs.getString(Constants.KEY_DEVICE_ID, "")
         tvDeviceStatus.text = if (cachedBound && cachedDeviceId == deviceId) "已绑定" else "未绑定"
     }
 
@@ -132,22 +133,7 @@ class ProfileContent : Fragment() {
      * 将 Base64 字符串解码为 Bitmap 并设置到 CircleImageView
      */
     private fun displayAvatarFromBase64(base64Str: String) {
-        try {
-            var pureBase64 = base64Str
-            if (base64Str.contains("base64,")) {
-                pureBase64 = base64Str.substring(base64Str.indexOf("base64,") + 7)
-            }
-            val imageBytes = Base64.decode(pureBase64, Base64.DEFAULT)
-            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-            if (bitmap != null) {
-                ivAvatar.setImageBitmap(bitmap)
-            } else {
-                ivAvatar.setImageResource(R.drawable.name_image)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            ivAvatar.setImageResource(R.drawable.name_image)
-        }
+        ImageUtils.setAvatarFromBase64(base64Str, ivAvatar)
     }
 
     /**
@@ -249,17 +235,5 @@ class ProfileContent : Fragment() {
                 requireActivity().finish()
             }
         )
-    }
-
-    @SuppressLint("HardwareIds")
-    private fun getAndroidDeviceId(): String {
-        return try {
-            android.provider.Settings.Secure.getString(
-                requireContext().contentResolver,
-                android.provider.Settings.Secure.ANDROID_ID
-            ) ?: "unknown_device"
-        } catch (e: Exception) {
-            "unknown_device"
-        }
     }
 }
