@@ -243,7 +243,11 @@ class ProfileContent : Fragment() {
             positiveText = "确定",
             negativeText = "取消",
             onPositive = {
-                prefs.edit().clear().apply()
+                // 清除本地缓存（包括旧版本可能残留的明文 saved_password）
+                prefs.edit()
+                    .clear()
+                    .remove("saved_password")
+                    .apply()
                 ApiService.clearToken()
                 startActivity(Intent(requireContext(), LoginActivity::class.java))
                 requireActivity().finish()

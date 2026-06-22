@@ -154,9 +154,19 @@ class WorkbenchContent : Fragment() {
             startActivity(Intent(requireContext(), LoginActivity::class.java))
             return
         }
-        val separator = if (url.contains("?")) "&" else "?"
-        val fullUrl = "${ApiService.BASE_URL}$url$separator" + "token=${token}"
-        Log.e("===WorkbenchContent fullUrl", fullUrl)
+        // 将 token 设置到 Cookie 中（由 WebView 的 CookieManager 自动发送），
+        // 避免把 token 作为 URL 查询参数明文泄露到访问日志、浏览器历史、DownloadManager URI 等处。
+        val baseUri = android.net.Uri.parse(ApiService.BASE_URL)
+        val domain = baseUri.host ?: ""
+        if (domain.isNotEmpty()) {
+            android.webkit.CookieManager.getInstance().apply {
+                setAcceptCookie(true)
+                val cookieValue = "token=$token; Path=/; Domain=$domain"
+                setCookie(ApiService.BASE_URL, cookieValue)
+                flush()
+            }
+        }
+        val fullUrl = if (url.startsWith("http")) url else "${ApiService.BASE_URL}$url"
         val intent = Intent(requireContext(), WebViewActivity::class.java)
         intent.putExtra("url", fullUrl)
         intent.putExtra("title", title)
@@ -241,7 +251,7 @@ class WebViewActivity : AppCompatActivity() {
             Log.d("WebViewActivity", "Cookie set: $cookie")
         }
 
-        // ========== 下载监听 - 为附件URL添加Token ==========
+        // ========== 下载监听 - 附件下载通过 Cookie 提供认证，不再把 token 放入 URL ==========
         webView.setDownloadListener { url, _, contentDisposition, mimeType, _ ->
             val token = sharedPref.getString("token", null)
             if (token.isNullOrEmpty()) {
@@ -250,19 +260,15 @@ class WebViewActivity : AppCompatActivity() {
                 return@setDownloadListener
             }
 
-            // 处理相对路径：拼接当前页面的Base URL
+            // 处理相对路径：拼接当前页面的 Base URL
             var downloadUrl = url
             if (!downloadUrl.startsWith("http")) {
                 val base = currentPageUrl.ifEmpty { ApiService.BASE_URL }
                 val baseUri = Uri.parse(base)
                 downloadUrl = Uri.parse(baseUri.scheme + "://" + baseUri.host + ":" + baseUri.port + downloadUrl).toString()
             }
-
-            // 添加token参数
-            val separator = if (downloadUrl.contains("?")) "&" else "?"
-            val finalUrl = "$downloadUrl$separator" + "token=${token}"
-            Log.d("WebViewActivity", "下载附件（已加Token）: $finalUrl")
-            downloadFile(finalUrl, contentDisposition, mimeType)
+            // token 由 DownloadManager 通过 Cookie header / addRequestHeader 提供，不出现在 URL 中
+            downloadFile(downloadUrl, contentDisposition, mimeType, token)
         }
 
         webView.webViewClient = object : WebViewClient() {
@@ -270,20 +276,11 @@ class WebViewActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 url?.let { currentPageUrl = it }
                 injectExportInterceptor()
-                addTokenToAttachmentLinks()
                 cleanPageHeader()
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
-                // 对于页面内点击的链接，确保带上Token（防止某些链接遗漏）
-                val url = request?.url.toString()
-                val token = sharedPref.getString("token", null)
-                if (!token.isNullOrEmpty() && url.startsWith(ApiService.BASE_URL) && !url.contains("token=")) {
-                    val separator = if (url.contains("?")) "&" else "?"
-                    val newUrl = "$url$separator" + "token=${token}"
-                    view?.loadUrl(newUrl)
-                    return true
-                }
+                // 认证由 CookieManager 通过 Cookie header 提供，不再把 token 放到 URL 中。
                 return super.shouldOverrideUrlLoading(view, request)
             }
         }
@@ -305,46 +302,10 @@ class WebViewActivity : AppCompatActivity() {
     }
 
     /**
-     * 为页面内所有附件链接（包含"attachment"关键字的a标签）添加token参数
-     */
-    private fun addTokenToAttachmentLinks() {
-        val token = sharedPref.getString("token", null) ?: return
-        val js = """
-            (function() {
-                var links = document.querySelectorAll('a[href*="attachment"], a[href*="export"]');
-                links.forEach(function(link) {
-                    var href = link.getAttribute('href');
-                    if (href && href.indexOf('token=') === -1) {
-                        var separator = href.indexOf('?') === -1 ? '?' : '&';
-                        link.setAttribute('href', href + separator + 'token=${token}');
-                    }
-                });
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
-    }
-
-    /**
-     * 拦截表单提交（如导出Excel），为action添加token参数
+     * 拦截表单提交（如导出 Excel）：不再把 token 放入 URL，认证由 Cookie 提供。
      */
     private fun injectExportInterceptor() {
-        val token = sharedPref.getString("token", null) ?: return
-        val js = """
-            (function() {
-                var forms = document.querySelectorAll('form[action*="export"], form[action*="excel"]');
-                forms.forEach(function(form) {
-                    if (form.getAttribute('data-export-intercepted') === 'true') return;
-                    form.setAttribute('data-export-intercepted', 'true');
-                    var originalAction = form.action;
-                    var separator = originalAction.indexOf('?') === -1 ? '?' : '&';
-                    form.action = originalAction + separator + 'token=${token}';
-                    form.addEventListener('submit', function(e) {
-                        // 不需要额外处理，action已修改
-                    });
-                });
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
+        // 保留占位：认证通过 Cookie header 完成，无需在 URL 中注入 token
     }
 
     private fun cleanPageHeader() {
@@ -367,21 +328,13 @@ class WebViewActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    private fun downloadFile(url: String, contentDisposition: String, mimeType: String) {
+    private fun downloadFile(url: String, contentDisposition: String, mimeType: String, token: String) {
         try {
-            val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-            var token = prefs.getString("token", null)
             var finalUrl = url
 
             // 补全 BASE_URL（如果是相对路径）
             if (!finalUrl.startsWith("http")) {
                 finalUrl = ApiService.BASE_URL + finalUrl
-            }
-
-            // 添加 token 参数（避免重复）
-            if (!token.isNullOrEmpty() && !finalUrl.contains("token=")) {
-                val separator = if (finalUrl.contains("?")) "&" else "?"
-                finalUrl = "$finalUrl$separator" + "token=$token"
             }
 
             // 生成正确的文件名
@@ -391,12 +344,14 @@ class WebViewActivity : AppCompatActivity() {
             val finalMimeType = getMimeTypeFromExtension(fileName) ?: mimeType
 
             val request = DownloadManager.Request(Uri.parse(finalUrl)).apply {
-                setMimeType(finalMimeType)   // 使用修正后的 MIME 类型
+                setMimeType(finalMimeType)
                 setTitle(fileName)
                 setDescription("正在下载附件")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 setDestinationInExternalFilesDir(this@WebViewActivity, Environment.DIRECTORY_DOWNLOADS, fileName)
                 allowScanningByMediaScanner()
+                // 把 token 放到请求头而非 URL 查询参数，避免泄露到访问日志 / URI 历史
+                addRequestHeader("Authorization", "Bearer $token")
             }
 
             val downloadManager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager

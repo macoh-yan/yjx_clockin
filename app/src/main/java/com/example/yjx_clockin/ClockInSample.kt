@@ -152,47 +152,49 @@ class ClockInSample : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         takePictureLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == android.app.Activity.RESULT_OK) {
-                val data: Intent? = result.data
-                val imageBitmap = data?.extras?.get("data") as? Bitmap
-                if (imageBitmap != null) {
-                    val base64 = bitmapToBase64(imageBitmap)
-                    val checkType = pendingCheckType ?: return@registerForActivityResult
-                    val lat = pendingLatitude ?: return@registerForActivityResult
-                    val lng = pendingLongitude ?: return@registerForActivityResult
-                    val addr = pendingAddress ?: return@registerForActivityResult
+            try {
+                if (result.resultCode == android.app.Activity.RESULT_OK) {
+                    val data: Intent? = result.data
+                    val imageBitmap = data?.extras?.get("data") as? Bitmap
+                    if (imageBitmap != null) {
+                        val base64 = bitmapToBase64(imageBitmap)
+                        val checkType = pendingCheckType ?: return@registerForActivityResult
+                        val lat = pendingLatitude ?: return@registerForActivityResult
+                        val lng = pendingLongitude ?: return@registerForActivityResult
+                        val addr = pendingAddress ?: return@registerForActivityResult
 
-                    // 下班打卡需要早退确认
-                    if (checkType == 2) {
-                        if (timeRule == null) loadTimeRuleForPoint(null)
-                        if (isEarlyLeave()) {
-                            showEarlyLeaveConfirmDialog { confirmed ->
-                                if (confirmed) {
-                                    submitCheck(checkType, lat, lng, addr, base64, true)
-                                } else {
-                                    isClockInProgress = false
+                        if (checkType == 2) {
+                            if (timeRule == null) loadTimeRuleForPoint(null)
+                            if (isEarlyLeave()) {
+                                showEarlyLeaveConfirmDialog { confirmed ->
+                                    if (confirmed) {
+                                        submitCheck(checkType, lat, lng, addr, base64, true)
+                                    } else {
+                                        isClockInProgress = false
+                                    }
                                 }
+                            } else {
+                                submitCheck(checkType, lat, lng, addr, base64, false)
                             }
                         } else {
                             submitCheck(checkType, lat, lng, addr, base64, false)
                         }
                     } else {
-                        // 上班打卡直接提交
-                        submitCheck(checkType, lat, lng, addr, base64, false)
+                        showDialog("提示", "拍照失败，请重试")
+                        isClockInProgress = false
                     }
                 } else {
-                    showDialog("提示", "拍照失败，请重试")
+                    showDialog("提示", "取消拍照")
                     isClockInProgress = false
                 }
-            } else {
-                showDialog("提示", "取消拍照")
-                isClockInProgress = false
+            } finally {
+                // 无论哪个分支退出，都清理临时变量（isClockInProgress 的复位由上面的业务分支负责，
+                // 此处仅负责清理临时定位/拍照数据，避免陈旧数据被复用）
+                pendingCheckType = null
+                pendingLatitude = null
+                pendingLongitude = null
+                pendingAddress = null
             }
-            // 清理临时变量
-            pendingCheckType = null
-            pendingLatitude = null
-            pendingLongitude = null
-            pendingAddress = null
         }
         tvUsername = view.findViewById(R.id.tv_username)
         tvDepartment = view.findViewById(R.id.tv_dep)
@@ -993,6 +995,8 @@ class ClockInSample : Fragment() {
             LOCATION_PERMISSION_REQUEST_CODE -> {
                 if (grantResults.isNotEmpty() && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                     showDialog("提示", "定位权限被拒绝，无法打卡")
+                    // 保险：确保状态锁未悬挂
+                    isClockInProgress = false
                 }
             }
             CAMERA_PERMISSION_REQUEST_CODE -> {
@@ -1000,6 +1004,8 @@ class ClockInSample : Fragment() {
                     openCamera()
                 } else {
                     showDialog("提示", "相机权限被拒绝，无法进行人脸验证打卡")
+                    // 关键复位：不复位会导致后续所有点击都卡在"打卡处理中"
+                    isClockInProgress = false
                 }
             }
         }

@@ -20,7 +20,9 @@ object ApiService {
             response
         }
         .build()
-    // 全局 Token，登录后调用 setToken() 设置
+    // 全局 Token（Volatile 保证多线程可见性；只有 LoginActivity 调用 setToken 写入，
+    // 其他 Fragment 一律只读，避免多 Fragment 并行覆盖造成"旧 token 复用"竞态）
+    @Volatile
     private var authToken: String? = null
 
     /**
@@ -133,39 +135,37 @@ object ApiService {
         })
     }
 
-    // ==================== 1. 获取员工列表 ====================
-    fun getEmployeeList(onResult: (List<Map<String, String>>) -> Unit) {
-        val request = Request.Builder().url(API_URL_EMPLOYEES).build()
-        Log.d("===ApiService", "请求 URL: $API_URL_EMPLOYEES")
-
+    // ==================== 1. 校验当前员工是否存在（仅按 emp_id 拉取单条，避免泄露全员信息）====================
+    fun verifyEmployeeExists(empId: String, onResult: (exists: Boolean, boundDeviceId: String) -> Unit) {
+        val url = "$API_URL_EMPLOYEES?keyword=$empId"
+        val request = buildRequest(url)
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                e.printStackTrace()
-                Log.e("===ApiService", "网络请求失败: ${e.message}")
-                onResult(emptyList())
+                Log.e("===ApiService", "员工校验请求失败: ${e.message}")
+                onResult(false, "")
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val json = response.body?.string()
-                Log.d("===ApiService", "原始响应 JSON: $json")
-                val list = mutableListOf<Map<String, String>>()
-                try {
-                    val jsonObject = JSONObject(json)
-                    val arr = jsonObject.getJSONArray("data")
-                    for (i in 0 until arr.length()) {
-                        val obj = arr.getJSONObject(i)
-                        list.add(mapOf(
-                            "emp_id" to obj.getString("emp_id"),
-                            "name" to obj.getString("name"),
-                            "department" to obj.getString("department")
-                        ))
-                    }
-                    Log.d("===ApiService", "解析成功，共 ${list.size} 条数据")
-                } catch (e: Exception) {
-                    Log.e("===ApiService", "JSON 解析失败: ${e.message}")
-                    e.printStackTrace()
+                val body = response.body?.string()
+                if (!response.isSuccessful || body == null) {
+                    onResult(false, "")
+                    return
                 }
-                onResult(list)
+                try {
+                    val jsonObject = JSONObject(body)
+                    val arr = jsonObject.optJSONArray("data")
+                    if (arr != null && arr.length() > 0) {
+                        val obj = arr.getJSONObject(0)
+                        // 仅保留设备绑定校验所需字段，不暴露姓名/部门等敏感信息
+                        val boundDeviceId = obj.optString("device_id", "")
+                        onResult(true, boundDeviceId)
+                    } else {
+                        onResult(false, "")
+                    }
+                } catch (e: Exception) {
+                    Log.e("===ApiService", "员工校验 JSON 解析失败: ${e.message}")
+                    onResult(false, "")
+                }
             }
         })
     }

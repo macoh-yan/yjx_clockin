@@ -54,26 +54,24 @@ class LoginActivity : AppCompatActivity() {
     private fun loadSavedCredentials() {
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         val savedEmpId = prefs.getString("saved_emp_id", "")
-        val savedPassword = prefs.getString("saved_password", "")
         val isRemembered = prefs.getBoolean("remember_password", false)
 
-        if (isRemembered && !savedEmpId.isNullOrEmpty() && !savedPassword.isNullOrEmpty()) {
+        if (isRemembered && !savedEmpId.isNullOrEmpty()) {
             binding.etEmpId.setText(savedEmpId)
-            binding.etPassword.setText(savedPassword)
             binding.cbRemember.isChecked = true
+            // 密码不再明文持久化：只预填工号，密码由用户手动输入
+            binding.etPassword.requestFocus()
         }
     }
 
-    private fun saveCredentials(empId: String, password: String) {
+    private fun saveCredentials(empId: String) {
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         val editor = prefs.edit()
         if (binding.cbRemember.isChecked) {
             editor.putString("saved_emp_id", empId)
-            editor.putString("saved_password", password)
             editor.putBoolean("remember_password", true)
         } else {
             editor.remove("saved_emp_id")
-            editor.remove("saved_password")
             editor.putBoolean("remember_password", false)
         }
         editor.apply()
@@ -122,21 +120,18 @@ class LoginActivity : AppCompatActivity() {
         }
 
         setLoading(true)
-        // 获取员工列表，查找当前员工的设备绑定状态
-        ApiService.getEmployeeList { list ->
+        // 仅拉取当前员工信息，避免泄露全员数据
+        ApiService.verifyEmployeeExists(empId) { exists, boundDeviceId ->
             runOnUiThread {
                 setLoading(false)
-                val currentEmp = list.find { it["emp_id"] == empId }
-                if (currentEmp == null) {
+                if (!exists) {
                     showError("员工信息不存在，请检查工号")
                     return@runOnUiThread
                 }
-                val boundDeviceId = currentEmp["device_id"] as? String ?: ""
                 if (boundDeviceId.isEmpty()) {
                     // 未绑定设备，自动绑定当前设备
                     autoBindDevice(empId, deviceId) { success ->
                         if (success) {
-                            // 绑定成功，保存缓存并登录
                             prefs.edit().putBoolean("device_bound", true)
                                 .putString("device_id", deviceId).apply()
                             performLogin(empId, password)
@@ -145,12 +140,10 @@ class LoginActivity : AppCompatActivity() {
                         }
                     }
                 } else if (boundDeviceId == deviceId) {
-                    // 已绑定且一致，更新本地缓存并登录
                     prefs.edit().putBoolean("device_bound", true)
                         .putString("device_id", deviceId).apply()
                     performLogin(empId, password)
                 } else {
-                    // 已绑定其他设备，拒绝登录
                     showError("该账号已绑定其他设备，请使用原绑定设备登录。如需更换设备，请联系管理员解绑。")
                 }
             }
@@ -215,8 +208,8 @@ class LoginActivity : AppCompatActivity() {
                     }
                     editor.apply()
 
-                    // 保存记住的密码
-                    saveCredentials(empId, password)
+                    // 仅记住工号，密码不再明文持久化
+                    saveCredentials(empId)
 
                     ApiService.setToken(token)
 
