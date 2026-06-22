@@ -36,6 +36,9 @@ import com.amap.api.maps.MapView
 import com.amap.api.maps.MapsInitializer
 import com.amap.api.maps.model.*
 import com.example.yjx_clockin.utils.ApiService
+import com.example.yjx_clockin.utils.Constants
+import com.example.yjx_clockin.utils.DeviceUtils
+import com.example.yjx_clockin.utils.ImageUtils
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -452,22 +455,7 @@ class ClockInSample : Fragment() {
     }
 
     private fun displayAvatarFromBase64(base64Str: String) {
-        try {
-            var pureBase64 = base64Str
-            if (base64Str.contains("base64,")) {
-                pureBase64 = base64Str.substring(base64Str.indexOf("base64,") + 7)
-            }
-            val imageBytes = Base64.decode(pureBase64, Base64.DEFAULT)
-            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-            if (bitmap != null) {
-                avatarIv.setImageBitmap(bitmap)
-            } else {
-                avatarIv.setImageResource(R.drawable.name_image)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            avatarIv.setImageResource(R.drawable.name_image)
-        }
+        ImageUtils.setAvatarFromBase64(base64Str, avatarIv)
     }
 
     private fun loadTodayCheckRecord(empId: String) {
@@ -526,8 +514,8 @@ class ClockInSample : Fragment() {
             onError("设备绑定中，请稍后...")
             return
         }
-        val deviceId = getAndroidDeviceId()
-        if (deviceId.isEmpty() || deviceId == "unknown_device") {
+        val deviceId = DeviceUtils.getAndroidDeviceId(requireContext())
+        if (!DeviceUtils.isDeviceIdValid(deviceId)) {
             onError("无法获取设备ID，请检查系统设置")
             return
         }
@@ -538,8 +526,8 @@ class ClockInSample : Fragment() {
         }
 
         val prefs = requireActivity().getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val cachedBound = prefs.getBoolean(PREFS_BIND_KEY, false)
-        val cachedDeviceId = prefs.getString(PREFS_DEVICE_ID_KEY, "")
+        val cachedBound = prefs.getBoolean(Constants.KEY_DEVICE_BOUND, false)
+        val cachedDeviceId = prefs.getString(Constants.KEY_DEVICE_ID, "")
         if (cachedBound && cachedDeviceId == deviceId) {
             onComplete()
             return
@@ -579,8 +567,8 @@ class ClockInSample : Fragment() {
                                 doBindDevice(deviceId, empId, onComplete, onError)
                             } else {
                                 if (boundDeviceId == deviceId) {
-                                    prefs.edit().putBoolean(PREFS_BIND_KEY, true)
-                                        .putString(PREFS_DEVICE_ID_KEY, deviceId).apply()
+                                    prefs.edit().putBoolean(Constants.KEY_DEVICE_BOUND, true)
+                                        .putString(Constants.KEY_DEVICE_ID, deviceId).apply()
                                     onComplete()
                                 } else {
                                     onError("该账号已绑定其他设备，请使用原绑定设备打卡。如需更换设备，请联系管理员解绑。")
@@ -625,8 +613,8 @@ class ClockInSample : Fragment() {
                     if (json.optInt("code") == 200) {
                         val prefs = requireActivity().getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                         prefs.edit()
-                            .putBoolean(PREFS_BIND_KEY, true)
-                            .putString(PREFS_DEVICE_ID_KEY, deviceId)
+                            .putBoolean(Constants.KEY_DEVICE_BOUND, true)
+                            .putString(Constants.KEY_DEVICE_ID, deviceId)
                             .apply()
                         activity?.runOnUiThread {
                             showLoading(false)
@@ -884,7 +872,7 @@ class ClockInSample : Fragment() {
 
     private fun openCamera() {
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST_CODE)
+            requestPermissions(arrayOf(Manifest.permission.CAMERA), Constants.CAMERA_PERMISSION_REQUEST_CODE)
             return
         }
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
@@ -892,17 +880,13 @@ class ClockInSample : Fragment() {
     }
 
     private fun bitmapToBase64(bitmap: Bitmap): String {
-        val scaled = bitmap.scale(480, 640)
-        val baos = ByteArrayOutputStream()
-        scaled.compress(Bitmap.CompressFormat.JPEG, 70, baos)
-        val bytes = baos.toByteArray()
-        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return ImageUtils.bitmapToBase64(bitmap)
     }
 
     private fun submitCheck(checkType: Int, latitude: Double, longitude: Double, address: String, faceBase64: String, confirmEarly: Boolean) {
         showProgressDialog("打卡中...")
         showLoading(true)
-        val deviceId = getAndroidDeviceId()
+        val deviceId = DeviceUtils.getAndroidDeviceId(requireContext())
         val jsonBody = JSONObject().apply {
             put("emp_id", currentEmpId)
             put("check_type", checkType)
@@ -967,15 +951,6 @@ class ClockInSample : Fragment() {
         })
     }
 
-    @SuppressLint("HardwareIds")
-    private fun getAndroidDeviceId(): String {
-        return try {
-            android.provider.Settings.Secure.getString(requireContext().contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "unknown_device"
-        } catch (_: Exception) {
-            "unknown_device"
-        }
-    }
-
     private fun checkLocationPermission(): Boolean {
         return ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
@@ -983,19 +958,19 @@ class ClockInSample : Fragment() {
     private fun requestLocationPermission() {
         requestPermissions(
             arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-            LOCATION_PERMISSION_REQUEST_CODE
+            Constants.LOCATION_PERMISSION_REQUEST_CODE
         )
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
-            LOCATION_PERMISSION_REQUEST_CODE -> {
+            Constants.LOCATION_PERMISSION_REQUEST_CODE -> {
                 if (grantResults.isNotEmpty() && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                     showDialog("提示", "定位权限被拒绝，无法打卡")
                 }
             }
-            CAMERA_PERMISSION_REQUEST_CODE -> {
+            Constants.CAMERA_PERMISSION_REQUEST_CODE -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     openCamera()
                 } else {
@@ -1018,9 +993,7 @@ class ClockInSample : Fragment() {
     override fun onSaveInstanceState(outState: Bundle) { super.onSaveInstanceState(outState); mapView.onSaveInstanceState(outState) }
 
     companion object {
-        private const val PREFS_BIND_KEY = "device_bound"
-        private const val PREFS_DEVICE_ID_KEY = "device_id"
-        private const val LOCATION_PERMISSION_REQUEST_CODE = 100
-        private const val CAMERA_PERMISSION_REQUEST_CODE = 101
+        // SharedPreferences keys are now in Constants
+        // Permission request codes are now in Constants
     }
 }

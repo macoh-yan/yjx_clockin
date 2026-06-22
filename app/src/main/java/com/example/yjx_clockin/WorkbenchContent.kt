@@ -29,6 +29,7 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.yjx_clockin.databinding.FragmentWorkbenchBinding
 import com.example.yjx_clockin.utils.ApiService
+import com.example.yjx_clockin.utils.Constants
 import com.example.yjx_clockin.utils.WorkbenchAdapter
 
 class WorkbenchContent : Fragment() {
@@ -58,8 +59,8 @@ class WorkbenchContent : Fragment() {
         }
         ViewCompat.requestApplyInsets(binding.swipeRefreshLayout)
 
-        sharedPref = requireContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val token = sharedPref.getString("token", null)
+        sharedPref = requireContext().getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+        val token = sharedPref.getString(Constants.KEY_TOKEN, null)
         if (token.isNullOrEmpty()) {
             Log.e("===Workbench", "Token为空，跳转登录页")
             startActivity(Intent(requireContext(), LoginActivity::class.java))
@@ -149,7 +150,7 @@ class WorkbenchContent : Fragment() {
     }
 
     private fun openWebPage(url: String, title: String) {
-        val token = sharedPref.getString("token", null)
+        val token = sharedPref.getString(Constants.KEY_TOKEN, null)
         if (token.isNullOrEmpty()) {
             startActivity(Intent(requireContext(), LoginActivity::class.java))
             return
@@ -158,8 +159,8 @@ class WorkbenchContent : Fragment() {
         val fullUrl = "${ApiService.BASE_URL}$url$separator" + "token=${token}"
         Log.e("===WorkbenchContent fullUrl", fullUrl)
         val intent = Intent(requireContext(), WebViewActivity::class.java)
-        intent.putExtra("url", fullUrl)
-        intent.putExtra("title", title)
+        intent.putExtra(Constants.EXTRA_URL, fullUrl)
+        intent.putExtra(Constants.EXTRA_TITLE, title)
         startActivity(intent)
     }
 
@@ -214,7 +215,7 @@ class WebViewActivity : AppCompatActivity() {
         supportActionBar?.setDisplayShowHomeEnabled(true)
         toolbar.setNavigationOnClickListener { onBackPressed() }
 
-        val title = intent.getStringExtra("title") ?: "详情"
+        val title = intent.getStringExtra(Constants.EXTRA_TITLE) ?: "详情"
         supportActionBar?.title = title
 
         webView = findViewById(R.id.webView)
@@ -299,7 +300,7 @@ class WebViewActivity : AppCompatActivity() {
             }
         })
 
-        val url = intent.getStringExtra("url") ?: ""
+        val url = intent.getStringExtra(Constants.EXTRA_URL) ?: ""
         val fullUrl = if (url.startsWith("http")) url else "${ApiService.BASE_URL}$url"
         webView.loadUrl(fullUrl)
     }

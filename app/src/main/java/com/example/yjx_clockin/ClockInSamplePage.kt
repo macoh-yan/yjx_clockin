@@ -16,6 +16,7 @@ import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.widget.ViewPager2
 import com.example.yjx_clockin.utils.ApiService
+import com.example.yjx_clockin.utils.Constants
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import java.util.ArrayList
@@ -133,8 +134,8 @@ class ClockInSamplePage : AppCompatActivity() {
     @SuppressLint("SetTextI18n")
     private fun loadCurrentUserInfo() {
         // 从 SharedPreferences 获取当前登录用户的 emp_id
-        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val currentEmpId = prefs.getString("emp_id", null)
+        val prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+        val currentEmpId = prefs.getString(Constants.KEY_EMP_ID, null)
 
         if (currentEmpId.isNullOrEmpty()) {
             tvUsername?.text = "未登录"
