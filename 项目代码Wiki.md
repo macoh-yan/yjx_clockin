@@ -1,394 +1,478 @@
-# 亿杰智企打卡系统 (yjx_clockin) - 代码文档
+# 亿杰智企综合管理平台 - 移动端项目文档
 
-## 项目概述
+## 1. 项目概述
 
-| 属性 | 值 |
-|------|-----|
-| 包名 | `com.example.yjx_clockin` |
-| 版本 | 1.0 (versionCode: 1) |
-| 最低SDK | API 24 (Android 7.0) |
-| 目标SDK | API 36 |
-| 语言 | Kotlin |
-| UI框架 | Jetpack Compose + ViewBinding 混合 |
-| 地图SDK | 高德地图 (AMap) 3DMap + Search + Location |
-| 网络库 | OkHttp 4.12.0 |
-| 后端地址 | `http://117.36.73.158:5000` |
+### 1.1 项目简介
 
----
+**项目名称**：yjx_clockin（亿杰智企综合管理平台移动端）
 
-## 目录结构
+**项目类型**：Android 考勤打卡应用
+
+**核心功能**：员工考勤打卡、设备绑定、人脸验证、审批流程、个人信息管理
+
+**技术栈**：
+- 语言：Kotlin
+- 框架：Android Jetpack（Compose、ViewBinding、Fragment）
+- 地图：高德地图SDK（AMap）
+- 网络：OkHttp、Retrofit
+- UI：Material Design 3
+
+### 1.2 项目架构
 
 ```
-yjx_clockin/
-├── app/
-│   ├── src/main/
-│   │   ├── java/com/example/yjx_clockin/
-│   │   │   ├── model/
-│   │   │   │   └── MenuButton.kt          # 数据模型
-│   │   │   ├── ui/theme/                  # Compose 主题
-│   │   │   │   ├── Color.kt
-│   │   │   │   ├── Theme.kt
-│   │   │   │   └── Type.kt
-│   │   │   ├── utils/                     # 工具类
-│   │   │   │   ├── ApiService.kt          # API 封装
-│   │   │   │   ├── DialogUtils.kt         # 对话框工具
-│   │   │   │   └── WorkbenchAdapter.kt    # 工作台列表适配器
-│   │   │   ├── LoginActivity.kt           # 登录页
-│   │   │   ├── ClockInSample.kt           # 打卡 Fragment
-│   │   │   ├── ClockInSamplePage.kt       # 打卡主页 (含 Tab)
-│   │   │   ├── FragmentAdapter.kt         # ViewPager 适配器
-│   │   │   ├── WorkbenchContent.kt        # 工作台 Fragment
-│   │   │   ├── ProfileContent.kt          # 个人中心 Fragment
-│   │   │   └── WebViewActivity.kt         # WebView 容器
-│   │   ├── res/                           # 资源文件
-│   │   └── AndroidManifest.xml
-│   └── build.gradle.kts
-├── gradle/                                 # Gradle Wrapper
-├── build.gradle.kts                        # 根构建配置
-├── settings.gradle.kts
-├── gradle.properties
-└── yjx_clockin_release.jks                # 签名文件
+┌─────────────────────────────────────────────────────────────┐
+│                      应用层 (UI)                            │
+│  LoginActivity │ ClockInSamplePage │ WebViewActivity       │
+├─────────────────────────────────────────────────────────────┤
+│                      业务层 (Fragment)                      │
+│  ClockInSample │ WorkbenchContent │ ProfileContent        │
+├─────────────────────────────────────────────────────────────┤
+│                      数据层 (Utils/Model)                   │
+│  ApiService │ DialogUtils │ WorkbenchAdapter              │
+│  MenuButton │ PersonalRecord                               │
+├─────────────────────────────────────────────────────────────┤
+│                      依赖库                                  │
+│  高德地图 │ OkHttp │ Retrofit │ Glide │ RecyclerView       │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 核心模块
+## 2. 目录结构
 
-### 1. 登录模块 - LoginActivity
-
-**文件**: `app/src/main/java/com/example/yjx_clockin/LoginActivity.kt`
-
-**功能**:
-- 员工编号 + 密码登录
-- 记住密码功能 (SharedPreferences)
-- 设备绑定验证 (防止账号在多设备登录)
-- 登录成功后跳转 ClockInSamplePage
-
-**核心流程**:
 ```
-用户输入 → 验证 → 检查设备绑定 →
-  ├─ 未绑定 → 自动绑定设备 → 登录
-  ├─ 已绑定本设备 → 直接登录
-  └─ 已绑定其他设备 → 拒绝登录
+app/
+├── libs/                              # 第三方库（高德地图SDK）
+│   ├── arm64-v8a/
+│   ├── armeabi-v7a/
+│   └── *.jar
+├── src/
+│   └── main/
+│       ├── java/com/example/yjx_clockin/
+│       │   ├── model/                 # 数据模型
+│       │   │   └── MenuButton.kt
+│       │   ├── ui/theme/              # Compose 主题配置
+│       │   │   ├── Color.kt
+│       │   │   ├── Theme.kt
+│       │   │   └── Type.kt
+│       │   ├── utils/                 # 工具类
+│       │   │   ├── ApiService.kt
+│       │   │   ├── DialogUtils.kt
+│       │   │   └── WorkbenchAdapter.kt
+│       │   ├── ClockInSample.kt       # 打卡Fragment
+│       │   ├── ClockInSamplePage.kt   # 主页Activity
+│       │   ├── FragmentAdapter.kt     # ViewPager2适配器
+│       │   ├── LoginActivity.kt       # 登录Activity
+│       │   ├── ProfileContent.kt      # 个人中心Fragment
+│       │   └── WorkbenchContent.kt    # 工作台Fragment
+│       ├── res/                       # 资源文件
+│       │   ├── drawable/              # 图片资源
+│       │   ├── layout/                # 布局文件
+│       │   ├── mipmap-*/              # 图标资源
+│       │   └── values/                # 配置文件
+│       └── AndroidManifest.xml        # 应用配置
+├── build.gradle.kts                   # 模块构建配置
+└── proguard-rules.pro                 # 混淆规则
 ```
 
-**关键方法**:
+---
+
+## 3. 核心组件说明
+
+### 3.1 登录模块 - LoginActivity
+
+**文件路径**：[app/src/main/java/com/example/yjx_clockin/LoginActivity.kt](file:///workspace/app/src/main/java/com/example/yjx_clockin/LoginActivity.kt)
+
+**职责**：处理用户登录、设备绑定验证、账号密码管理
+
+**核心功能**：
+| 功能 | 说明 | 关键方法 |
+|------|------|----------|
+| 账号密码验证 | 验证员工编号和密码非空 | `validateInput()` |
+| 设备绑定检查 | 获取Android设备ID并验证绑定状态 | `checkAndBindDevice()` |
+| 自动绑定设备 | 未绑定时自动绑定当前设备 | `autoBindDevice()` |
+| 登录请求 | 调用登录接口获取Token | `performLogin()` |
+| 记住密码 | 使用SharedPreferences保存凭证 | `saveCredentials()` |
+
+**登录流程**：
+```
+用户输入 → 验证输入 → 检查设备绑定 → 自动绑定(如需) → 请求登录 → 保存Token → 跳转到主页
+```
+
+### 3.2 打卡模块 - ClockInSample
+
+**文件路径**：[app/src/main/java/com/example/yjx_clockin/ClockInSample.kt](file:///workspace/app/src/main/java/com/example/yjx_clockin/ClockInSample.kt)
+
+**职责**：核心打卡功能，包含地图展示、定位、人脸验证、时间规则校验
+
+**核心属性**：
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `mLocationClient` | AMapLocationClient | 高德定位客户端 |
+| `aMap` | AMap | 地图实例 |
+| `punchPoints` | List<JSONObject> | 打卡点列表（含围栏范围） |
+| `timeRule` | PunchTimeRule | 时间规则（上班截止时间、下班开始时间等） |
+| `isClockInProgress` | Boolean | 防重复打卡标志 |
+
+**核心方法**：
 | 方法 | 说明 |
 |------|------|
-| `loadSavedCredentials()` | 加载本地保存的账号密码 |
-| `saveCredentials()` | 保存/清除记住的密码 |
-| `checkAndBindDevice()` | 检查并执行设备绑定 |
-| `performLogin()` | 执行登录请求 |
+| `initAmapLocation()` | 初始化高德定位服务 |
+| `fetchPunchPointsAndDrawFence()` | 获取打卡点并在地图绘制围栏 |
+| `isFaceRequiredAtLocation()` | 判断当前位置是否需要人脸验证 |
+| `performCheckIn()` | 执行上班打卡 |
+| `performCheckOut()` | 执行下班打卡（含早退确认） |
+| `submitCheck()` | 提交打卡请求到服务器 |
 
-**SharedPreferences Key**:
-| Key | 类型 | 说明 |
-|-----|------|------|
-| `saved_emp_id` | String | 保存的员工编号 |
-| `saved_password` | String | 保存的密码 |
-| `remember_password` | Boolean | 是否记住密码 |
-| `token` | String | 登录 Token |
-| `emp_id` | String | 当前员工编号 |
-| `emp_name` | String | 当前员工姓名 |
-| `device_bound` | Boolean | 设备绑定状态 |
-| `device_id` | String | 绑定的设备ID |
-
----
-
-### 2. 打卡模块 - ClockInSample
-
-**文件**: `app/src/main/java/com/example/yjx_clockin/ClockInSample.kt`
-
-**功能**:
-- 高德地图展示打卡区域围栏
-- GPS 定位获取当前位置
-- 上班打卡 / 下班打卡
-- 人脸识别验证 (部分打卡点需开启)
-- 虚拟定位检测 (禁止模拟位置打卡)
-- 早退确认提示
-
-**打卡点数据结构** (从服务器获取):
+**时间规则数据类**：
 ```kotlin
 data class PunchTimeRule(
-    checkInDeadline: String,   // 上班打卡截止时间
-    checkOutStart: String,     // 下班打卡开始时间
-    lateMinutes: Int,          // 迟到分钟数
-    earlyLeaveMinutes: Int     // 早退分钟数
+    val checkInDeadline: String,    // 上班截止时间（如 "09:30"）
+    val checkOutStart: String,      // 下班开始时间（如 "18:00"）
+    val lateMinutes: Int,           // 迟到阈值（分钟）
+    val earlyLeaveMinutes: Int      // 早退阈值（分钟）
 )
 ```
 
-**核心流程**:
-```
-点击打卡按钮 → 检查设备绑定 → 获取当前位置 →
-├─ 在打卡范围内
-│   ├─ 需要人脸验证 → 打开相机 → 拍照 → 提交打卡
-│   └─ 不需要人脸 → 直接提交打卡
-└─ 不在范围内 → 提示不在打卡范围
-```
+### 3.3 工作台模块 - WorkbenchContent
 
-**API 接口**:
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/api/emp/punch_points` | GET | 获取打卡点列表及围栏 |
-| `/api/emp/time_rule` | GET | 获取打卡时间规则 |
-| `/api/upload_check` | POST | 提交打卡记录 |
-| `/api/get_daily_record` | POST | 获取当日打卡记录 |
+**文件路径**：[app/src/main/java/com/example/yjx_clockin/WorkbenchContent.kt](file:///workspace/app/src/main/java/com/example/yjx_clockin/WorkbenchContent.kt)
 
-**防作弊机制**:
-- `isMock` 检测: 禁止虚拟定位
-- 设备绑定验证: 防止换设备打卡
-- 围栏范围校验: 必须在指定范围内
+**职责**：展示员工工作台，包含个人记录、申请菜单、审批菜单（按角色权限显示）
 
----
+**功能结构**：
+- **个人记录区**：报销记录、请假记录、调休记录、外出记录、采购记录、加班记录、费用申请、工资条
+- **申请菜单**：请假申请、调休申请、报销申请、外出申请、加班申请、采购申请、费用申请
+- **审批菜单**：根据用户角色动态显示（admin、manager、supervisor、finance等）
 
-### 3. 工作台模块 - WorkbenchContent
-
-**文件**: `app/src/main/java/com/example/yjx_clockin/WorkbenchContent.kt`
-
-**功能**:
-- 展示个人记录入口 (报销、请假、调休、外出、采购、加班、工资条)
-- 展示申请入口 (各类申请表单)
-- 展示审批入口 (根据用户角色动态显示)
-- 下拉刷新
-- WebView 打开各类表单页面
-
-**角色权限对照**:
-
-| 审批类型 | 有权限的角色 |
-|----------|-------------|
-| 请假/调休/外出/加班审批 | admin, manager, supervisor, general_manager, tech_supervisor, hr_supervisor |
+**角色权限映射**：
+| 菜单 | 所需角色 |
+|------|----------|
+| 请假审批 | admin, manager, supervisor, general_manager, tech_supervisor, hr_supervisor |
+| 调休审批 | admin, manager, supervisor, general_manager, tech_supervisor, hr_supervisor |
+| 外出审批 | admin, manager, supervisor, general_manager, tech_supervisor, hr_supervisor |
+| 加班审批 | admin, manager, supervisor, general_manager, tech_supervisor, hr_supervisor |
 | 报销审批 | admin, finance, accountant, general_manager, supervisor, manager, tech_supervisor |
 | 采购审批 | admin, manager, supervisor, general_manager, tech_supervisor, purchaser, storekeeper |
 | 费用审批 | admin, finance, accountant, general_manager, supervisor, tech_supervisor |
 
-**个人记录项**:
-| 名称 | 图标 | 路径 |
-|------|------|------|
-| 报销记录 | ic_expense | /employee/expense_list |
-| 请假记录 | ic_leave | /employee/leave_list |
-| 调休记录 | ic_exchange | /employee/exchange_list |
-| 外出记录 | ic_out_apply | /employee/out_list |
-| 采购记录 | ic_purchase | /employee/purchase_list |
-| 加班记录 | ic_overtime | /employee/overtime_list |
-| 费用申请记录 | ic_cost | /employee/cost_list |
-| 工资条 | ic_salary | /employee/salary |
+### 3.4 个人中心模块 - ProfileContent
 
----
+**文件路径**：[app/src/main/java/com/example/yjx_clockin/ProfileContent.kt](file:///workspace/app/src/main/java/com/example/yjx_clockin/ProfileContent.kt)
 
-### 4. 个人中心 - ProfileContent
+**职责**：展示个人信息、设备绑定状态、修改密码、退出登录
 
-**文件**: `app/src/main/java/com/example/yjx_clockin/ProfileContent.kt`
+**核心功能**：
+| 功能 | 说明 |
+|------|------|
+| 信息展示 | 用户名、部门、工号、电话、邮箱、入职日期 |
+| 头像加载 | 从Base64解码并显示 |
+| 设备状态 | 显示当前设备绑定状态 |
+| 修改密码 | 验证原密码后修改新密码 |
+| 关于系统 | 显示版本信息 |
+| 退出登录 | 清除本地缓存并返回登录页 |
 
-**功能**:
-- 显示员工头像、姓名、部门、工号、联系方式、入职日期
-- 修改密码
-- 显示关于信息
-- 退出登录
+### 3.5 网络请求工具 - ApiService
 
-**头像加载**: 支持 Base64 字符串解码显示
+**文件路径**：[app/src/main/java/com/example/yjx_clockin/utils/ApiService.kt](file:///workspace/app/src/main/java/com/example/yjx_clockin/utils/ApiService.kt)
 
----
+**职责**：封装所有API请求，管理认证Token
 
-### 5. WebView 容器 - WebViewActivity
+**基础配置**：
+- **BASE_URL**：`http://117.36.73.158:5000`
+- **认证方式**：Bearer Token
 
-**文件**: `app/src/main/java/com/example/yjx_clockin/WorkbenchContent.kt` (内联类)
+**API接口列表**：
+| 方法 | 接口路径 | 说明 |
+|------|----------|------|
+| `login()` | `/api/employee/login` | 员工登录 |
+| `getEmployeeList()` | `/api/employees` | 获取员工列表 |
+| `getEmployeeDetail()` | `/api/employees?keyword={empId}` | 获取员工详情 |
+| `getCurrentUser()` | `/api/current_user` | 获取当前用户信息 |
+| `getMobileMenu()` | `/employee/mobile` | 获取移动端菜单 |
+| `getMyLeaves()` | `/api/leave/my` | 获取我的请假记录 |
+| `getMyExchanges()` | `/api/exchange/my` | 获取我的调休记录 |
+| `getMyExpenses()` | `/api/expense/my` | 获取我的报销记录 |
+| `changePassword()` | `/api/employee/change_password` | 修改密码 |
 
-**功能**:
-- 加载 H5 表单页面
-- 保持登录态 Cookie
-- Token 参数自动注入
-- 附件下载支持 (Excel/PDF 等)
-- 自动清除页面顶部 Header
-- 表单导出拦截 (为导出链接添加 Token)
-
-**JavaScript 注入**:
-```javascript
-// 为附件链接添加 Token
-document.querySelectorAll('a[href*="attachment"], a[href*="export"]')
-
-// 拦截表单提交
-document.querySelectorAll('form[action*="export"], form[action*="excel"]')
+**Token管理**：
+```kotlin
+fun setToken(token: String)    // 设置全局Token
+fun clearToken()               // 清除Token
+fun buildRequest(url, method, body)  // 构建带认证头的请求
 ```
 
-**文件下载处理**:
-- 支持 Content-Disposition 文件名解析
-- 支持 RFC 5987 (filename*)
-- 自动修正文件扩展名 (.bin → .xlsx 等)
-- 根据 MIME 类型生成默认文件名
+### 3.6 对话框工具 - DialogUtils
 
----
+**文件路径**：[app/src/main/java/com/example/yjx_clockin/utils/DialogUtils.kt](file:///workspace/app/src/main/java/com/example/yjx_clockin/utils/DialogUtils.kt)
 
-### 6. API 服务 - ApiService
+**职责**：统一对话框样式，提供便捷的弹窗方法
 
-**文件**: `app/src/main/java/com/example/yjx_clockin/utils/ApiService.kt`
-
-**单例对象**, 封装所有网络请求。
-
-**Base URL**: `http://117.36.73.158:5000`
-
-**认证方式**: Bearer Token (登录后通过 `setToken()` 设置)
-
-**主要接口**:
-
-| 接口路径 | 方法 | 说明 |
-|----------|------|------|
-| `/api/employee/login` | POST | 员工登录 |
-| `/api/employees` | GET | 获取员工列表 |
-| `/api/employees?keyword=xxx` | GET | 搜索员工 |
-| `/api/current_user` | GET | 获取当前用户信息 |
-| `/api/bind_device` | POST | 绑定设备 |
-| `/api/leave/my` | GET | 我的请假记录 |
-| `/api/exchange/my` | GET | 我的调休记录 |
-| `/api/expense/my` | GET | 我的报销记录 |
-| `/api/leave/wait_count` | GET | 请假待审批数量 |
-| `/api/employee/change_password` | POST | 修改密码 |
-| `/employee/mobile` | GET | 获取移动端菜单 |
-
----
-
-### 7. 对话框工具 - DialogUtils
-
-**文件**: `app/src/main/java/com/example/yjx_clockin/utils/DialogUtils.kt`
-
-**单例对象**, 使用 Material Design AlertDialog 封装统一风格的对话框。
-
+**核心方法**：
 ```kotlin
-DialogUtils.showCustomDialog(
-    context = context,
-    title = "标题",
-    message = "内容",
-    iconRes = R.drawable.ic_dialog_info,
-    positiveText = "确定",
-    negativeText = "取消",
-    onPositive = { /* 确定回调 */ },
-    onNegative = { /* 取消回调 */ }
+fun showCustomDialog(
+    context: Context,
+    title: String?,           // 标题（可选）
+    message: String,          // 消息内容
+    iconRes: Int?,            // 图标资源（可选）
+    positiveText: String,     // 确定按钮文字
+    negativeText: String?,    // 取消按钮文字（可选）
+    onPositive: (() -> Unit)?, // 确定回调
+    onNegative: (() -> Unit)? // 取消回调
 )
 ```
 
 ---
 
-### 8. 工作台适配器 - WorkbenchAdapter
+## 4. 关键业务流程
 
-**文件**: `app/src/main/java/com/example/yjx_clockin/utils/WorkbenchAdapter.kt`
+### 4.1 登录流程
 
-RecyclerView 多类型适配器, 支持 6 种 ViewType:
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Activity as LoginActivity
+    participant API as ApiService
+    participant Server as 服务器
 
-| Type | 说明 |
-|------|------|
-| `TYPE_WELCOME` | 欢迎卡片 |
-| `TYPE_PERSONAL_GRID` | 个人记录九宫格 |
-| `TYPE_APPLY_HEADER` | "申请管理" 分组标题 |
-| `TYPE_APPLY_GRID` | 申请入口网格 |
-| `TYPE_APPROVAL_HEADER` | "审批管理" 分组标题 |
-| `TYPE_APPROVAL_GRID` | 审批入口网格 |
-
----
-
-## 权限清单
-
-| 权限 | 用途 |
-|------|------|
-| `INTERNET` | 网络请求 |
-| `ACCESS_FINE_LOCATION` | GPS 精确定位 |
-| `ACCESS_COARSE_LOCATION` | 网络定位辅助 |
-| `ACCESS_NETWORK_STATE` | 检测网络状态 |
-| `ACCESS_WIFI_STATE` | WiFi 定位辅助 |
-| `CHANGE_WIFI_STATE` | WiFi 状态监控 |
-| `ACCESS_LOCATION_EXTRA_COMMANDS` | 加速 GPS 定位 |
-| `WRITE_SETTINGS` | 系统设置写入 |
-| `WRITE_EXTERNAL_STORAGE` | 地图缓存 (maxSdk=28) |
-| `READ_EXTERNAL_STORAGE` | 文件读取 (maxSdk=32) |
-| `CAMERA` | 人脸拍照 |
-
----
-
-## 第三方库依赖
-
-| 库 | 版本 | 用途 |
-|----|------|------|
-| OkHttp | 4.12.0 | HTTP 客户端 |
-| Retrofit | 2.9.0 | REST 客户端 (已引入但未使用) |
-| Gson Converter | 2.9.0 | JSON 解析 (已引入但未使用) |
-| Glide | 4.15.0 | 图片加载 (已引入但未使用) |
-| CircleImageView | 3.1.0 | 圆形头像 |
-| Material Components | 1.9.0 | Material Design UI |
-| AMap 3DMap | 11.1.200 | 3D 地图展示 |
-| AMap Search | 9.7.4 | 地图搜索服务 |
-| AMap Location | 11.1.200 | 定位服务 |
-| Kotlinx Coroutines | 1.6.4 | 协程支持 |
-| SwipeRefreshLayout | 1.1.0 | 下拉刷新 |
-| ConstraintLayout | 2.1.4 | 复杂布局 |
-
----
-
-## 数据流
-
-```
-登录 → Token 存储 SharedPreferences
-    ↓
-ClockInSamplePage (ViewPager + TabLayout)
-    ├── Tab 0: ClockInSample (打卡)
-    │   ├── 获取打卡围栏 /api/emp/punch_points
-    │   ├── 定位 (高德 SDK)
-    │   └── 提交打卡 /api/upload_check
-    │
-    ├── Tab 1: WorkbenchContent (工作台)
-    │   ├── 获取当前用户 /api/current_user
-    │   ├── 个人记录列表 (本地配置)
-    │   ├── 申请菜单 (本地配置)
-    │   └── 审批菜单 (根据角色过滤)
-    │
-    └── Tab 2: ProfileContent (我的)
-        ├── 获取员工详情 /api/employees?keyword=xxx
-        ├── 修改密码 /api/employee/change_password
-        └── 退出登录 (清除 Token)
+    User->>Activity: 输入工号和密码，点击登录
+    Activity->>Activity: validateInput() 验证输入
+    Activity->>Activity: getAndroidDeviceId() 获取设备ID
+    
+    alt 本地缓存已绑定且设备ID一致
+        Activity->>API: login(empId, password, deviceId)
+    else 未绑定或设备ID变更
+        Activity->>API: getEmployeeList()
+        API->>Server: GET /api/employees
+        Server-->>API: 返回员工列表
+        API-->>Activity: List<Map>
+        
+        alt 员工未绑定设备
+            Activity->>API: autoBindDevice(empId, deviceId)
+            API->>Server: POST /api/bind_device
+            Server-->>API: 绑定成功
+            API-->>Activity: 更新本地缓存
+            Activity->>API: login(empId, password, deviceId)
+        else 已绑定其他设备
+            Activity->>Activity: 显示错误提示
+        end
+    end
+    
+    API->>Server: POST /api/employee/login
+    Server-->>API: 返回Token和用户信息
+    API-->>Activity: (success, json, cookie)
+    
+    Activity->>Activity: 保存Token到SharedPreferences
+    Activity->>Activity: 跳转到ClockInSamplePage
 ```
 
+### 4.2 打卡流程
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Fragment as ClockInSample
+    participant Location as AMapLocationClient
+    participant API as ApiService
+    participant Server as 服务器
+
+    User->>Fragment: 点击打卡按钮
+    Fragment->>Fragment: 检查防重标志(isClockInProgress)
+    
+    Fragment->>Fragment: 检查定位权限
+    Fragment->>Fragment: 检查设备绑定状态
+    
+    Fragment->>Location: 请求定位
+    Location-->>Fragment: 返回经纬度和地址
+    
+    Fragment->>API: 获取打卡点列表
+    API->>Server: GET /api/emp/punch_points
+    Server-->>API: 返回打卡点（含围栏范围）
+    API-->>Fragment: JSONArray
+    
+    Fragment->>Fragment: 判断是否在围栏内且需要人脸验证
+    
+    alt 需要人脸验证
+        Fragment->>Fragment: 打开相机拍照
+        Fragment->>Fragment: bitmapToBase64() 转换图片
+    end
+    
+    Fragment->>API: submitCheck(checkType, lat, lng, addr, faceBase64)
+    API->>Server: POST /api/upload_check
+    Server-->>API: 打卡成功/失败
+    API-->>Fragment: 返回结果
+    
+    Fragment->>Fragment: 显示打卡结果
+    Fragment->>Fragment: 刷新今日打卡记录
+```
+
+### 4.3 早退确认流程
+
+```mermaid
+flowchart TD
+    A[用户点击下班打卡] --> B{当前时间 < 下班开始时间?}
+    B -->|是| C[显示早退确认对话框]
+    C --> D{用户确认?}
+    D -->|是| E[提交打卡, confirmEarly=true]
+    D -->|否| F[取消打卡]
+    B -->|否| G[直接提交打卡, confirmEarly=false]
+    E --> H[服务器记录早退]
+    G --> I[服务器正常记录]
+```
+
 ---
 
-## 布局文件对照
+## 5. 权限说明
 
-| 文件 | 对应 Activity/Fragment |
-|------|------------------------|
+| 权限 | 用途 | 权限级别 |
+|------|------|----------|
+| `INTERNET` | 网络请求 | 正常权限 |
+| `ACCESS_FINE_LOCATION` | GPS精确定位 | 危险权限 |
+| `ACCESS_COARSE_LOCATION` | 网络定位 | 危险权限 |
+| `ACCESS_NETWORK_STATE` | 获取网络状态 | 正常权限 |
+| `ACCESS_WIFI_STATE` | 获取WiFi信息 | 正常权限 |
+| `CHANGE_WIFI_STATE` | 修改WiFi状态 | 正常权限 |
+| `WRITE_EXTERNAL_STORAGE` | 地图瓦片缓存 | 危险权限（API<29） |
+| `READ_EXTERNAL_STORAGE` | 读取缓存 | 危险权限（API<33） |
+| `CAMERA` | 人脸拍照验证 | 危险权限 |
+
+---
+
+## 6. 依赖库列表
+
+| 依赖 | 版本 | 用途 |
+|------|------|------|
+| `androidx.activity.compose` | - | Compose Activity支持 |
+| `androidx.appcompat` | 1.6.1 | 兼容库 |
+| `androidx.compose.material3` | - | Material Design 3 |
+| `androidx.recyclerview` | 1.3.0 | 列表组件 |
+| `com.squareup.okhttp3:okhttp` | 4.12.0 | 网络请求 |
+| `com.squareup.retrofit2:retrofit` | 2.9.0 | REST API框架 |
+| `com.amap.api:3dmap-location-search` | latest | 高德地图SDK |
+| `com.github.bumptech.glide:glide` | 4.15.0 | 图片加载 |
+| `de.hdodenhof:circleimageview` | 3.1.0 | 圆形图片View |
+| `org.jetbrains.kotlinx:kotlinx-coroutines-android` | 1.6.4 | 协程 |
+
+---
+
+## 7. 项目运行
+
+### 7.1 环境要求
+
+- **Android SDK**：API 36（compileSdk）
+- **最小支持版本**：API 24（Android 7.0）
+- **构建工具**：Gradle 8.x
+- **Kotlin版本**：与Compose兼容的版本
+
+### 7.2 构建命令
+
+```bash
+# 构建Debug版本
+./gradlew assembleDebug
+
+# 构建Release版本
+./gradlew assembleRelease
+
+# 运行测试
+./gradlew test
+```
+
+### 7.3 签名配置
+
+项目使用 `yjx_clockin_release.jks` 进行Release签名，配置在 `build.gradle.kts` 中。
+
+### 7.4 高德地图API Key
+
+在 `AndroidManifest.xml` 中配置：
+```xml
+<meta-data
+    android:name="com.amap.api.v2.apikey"
+    android:value="aaf5aed3e0bda48b4ac150ceb445dca8"/>
+```
+
+---
+
+## 8. 数据存储
+
+### 8.1 SharedPreferences 键值列表
+
+| Key | 类型 | 说明 |
+|-----|------|------|
+| `token` | String | 登录Token |
+| `emp_id` | String | 员工编号 |
+| `emp_name` | String | 员工姓名 |
+| `cookie` | String | 登录Cookie |
+| `device_bound` | Boolean | 设备绑定状态 |
+| `device_id` | String | 绑定的设备ID |
+| `saved_emp_id` | String | 记住的账号 |
+| `saved_password` | String | 记住的密码 |
+| `remember_password` | Boolean | 是否记住密码 |
+
+---
+
+## 9. 安全特性
+
+| 特性 | 说明 | 实现位置 |
+|------|------|----------|
+| 设备绑定 | 账号只能在绑定的设备上登录 | LoginActivity, ClockInSample |
+| 虚拟定位检测 | 检测并拒绝模拟位置打卡 | ClockInSample |
+| Token认证 | 所有API请求携带Bearer Token | ApiService |
+| 防重复打卡 | 避免重复提交打卡请求 | ClockInSample |
+| 密码本地加密 | 记住密码功能 | LoginActivity |
+
+---
+
+## 10. 代码优化建议
+
+### 10.1 待优化项
+
+| 问题 | 位置 | 建议 |
+|------|------|------|
+| 网络请求未统一处理错误 | ApiService | 封装统一的错误处理和重试机制 |
+| 硬编码URL | ApiService | 抽取到配置文件或BuildConfig |
+| 缺少数据缓存策略 | 全局 | 引入Room数据库缓存打卡点等数据 |
+| UI线程操作冗余 | 多处 | 使用协程简化线程切换 |
+| 权限请求未封装 | 多处 | 抽取权限请求工具类 |
+| 日志未分级 | 多处 | 使用Timber等日志框架 |
+
+### 10.2 潜在问题
+
+1. **网络超时处理**：部分请求缺少超时配置（已在ClockInSample中配置30秒）
+2. **内存泄漏风险**：Fragment中的异步回调需要注意生命周期管理
+3. **图片资源优化**：部分drawable资源未提供多种分辨率版本
+
+---
+
+## 附录：资源文件说明
+
+### A. 图标资源（drawable）
+
+| 文件名 | 用途 |
+|--------|------|
+| `ic_clock.png` | 打卡Tab图标 |
+| `ic_tab_workbench.png` | 工作台Tab图标 |
+| `ic_tab_profile.png` | 个人中心Tab图标 |
+| `ic_leave.png` | 请假相关图标 |
+| `ic_expense.png` | 报销相关图标 |
+| `ic_overtime.png` | 加班相关图标 |
+| `clock_in_local.png` | 打卡点标记图标 |
+| `bg_fence_*.xml` | 围栏样式 |
+
+### B. 布局文件（layout）
+
+| 文件名 | 对应组件 |
+|--------|----------|
 | `activity_login.xml` | LoginActivity |
 | `activity_clock_in_sample_page.xml` | ClockInSamplePage |
-| `activity_clock_in_sample.xml` | ClockInSample (Fragment) |
-| `activity_workbench_content.xml` | WorkbenchContent (Fragment) |
-| `activity_profile_content.xml` | ProfileContent (Fragment) |
-| `activity_webview.xml` | WebViewActivity |
-| `fragment_workbench.xml` | WorkbenchContent 布局 |
-| `item_welcome_card.xml` | 工作台欢迎卡片 |
-| `item_personal_grid.xml` | 个人记录九宫格容器 |
-| `item_grid_menu.xml` | 申请/审批菜单网格容器 |
-| `dialog_change_password.xml` | 修改密码弹窗 |
-| `dialog_custom_layout.xml` | 通用对话框布局 |
+| `activity_clock_in_sample.xml` | ClockInSample Fragment |
+| `activity_workbench_content.xml` | WorkbenchContent Fragment |
+| `activity_profile_content.xml` | ProfileContent Fragment |
+| `fragment_workbench.xml` | 工作台列表布局 |
+| `dialog_custom_layout.xml` | 自定义对话框布局 |
+| `dialog_change_password.xml` | 修改密码对话框 |
 
 ---
 
-## 主题配置
-
-**文件**: `app/src/main/res/values/themes.xml`
-
-主要使用 `AppTheme` 和 `Theme.Yjx_clockin`, 支持:
-- 沉浸式状态栏 (透明)
-- 导航栏沉浸
-- Material Design 组件风格
-
----
-
-## 构建配置
-
-**Gradle Version**: 8.7
-**Android Gradle Plugin**: 8.5.0+
-**Kotlin**: 2.0.0 (via kotlin.compose compiler plugin)
-
-**NDK ABI Filter**: `arm64-v8a`, `armeabi-v7a`
-
-**ProGuard**: 未启用 (release minifyEnabled = false)
-
----
-
-## 版本信息
-
-- **APP Name**: 亿杰智企
-- **签名**: `yjx_clockin_release.jks`
-- **版本**: 1.0.0
+**文档版本**：v1.0  
+**生成日期**：2026-06-22  
+**项目版本**：1.0
