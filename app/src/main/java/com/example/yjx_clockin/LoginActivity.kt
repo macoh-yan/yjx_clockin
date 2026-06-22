@@ -20,6 +20,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
+import java.security.MessageDigest
+import java.util.Base64
 
 class LoginActivity : AppCompatActivity() {
 
@@ -70,7 +72,7 @@ class LoginActivity : AppCompatActivity() {
         val editor = prefs.edit()
         if (binding.cbRemember.isChecked) {
             editor.putString(Constants.KEY_SAVED_EMP_ID, empId)
-            editor.putString(Constants.KEY_SAVED_PASSWORD, password)
+            editor.putString(Constants.KEY_SAVED_PASSWORD, hashPassword(password))
             editor.putBoolean(Constants.KEY_REMEMBER_PASSWORD, true)
         } else {
             editor.remove(Constants.KEY_SAVED_EMP_ID)
@@ -78,6 +80,16 @@ class LoginActivity : AppCompatActivity() {
             editor.putBoolean(Constants.KEY_REMEMBER_PASSWORD, false)
         }
         editor.apply()
+    }
+
+    private fun hashPassword(password: String): String {
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            val hash = digest.digest(password.toByteArray())
+            Base64.getEncoder().encodeToString(hash)
+        } catch (e: Exception) {
+            password
+        }
     }
 
     private fun validateInput(empId: String, password: String): Boolean {

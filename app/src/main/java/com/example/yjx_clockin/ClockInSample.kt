@@ -219,7 +219,9 @@ class ClockInSample : Fragment() {
             3 -> "星期二"
             4 -> "星期三"
             5 -> "星期四"
-            else -> "星期六"
+            6 -> "星期五"
+            7 -> "星期六"
+            else -> "未知"
         }
         tvDate.text = "今天是 $year 年 $month 月 $day 日 $week"
 
@@ -340,6 +342,7 @@ class ClockInSample : Fragment() {
         val scaledBitmap = originBitmap.scale(64, 64, false)
         val icon = BitmapDescriptorFactory.fromBitmap(scaledBitmap)
         originBitmap.recycle()
+        scaledBitmap.recycle()
         if (userLocationMarker == null) {
             val markerOptions = MarkerOptions()
                 .position(position)
@@ -403,6 +406,7 @@ class ClockInSample : Fragment() {
                 val scaledBitmap = originBitmap.scale(64, 64, false)
                 val bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(scaledBitmap)
                 originBitmap.recycle()
+                scaledBitmap.recycle()
                 val markerOptions = MarkerOptions()
                     .position(center)
                     .title(name)
@@ -717,7 +721,7 @@ class ClockInSample : Fragment() {
         return r * c
     }
 
-    private fun loadTimeRuleForPoint(pointId: Int?) {
+    private fun loadTimeRuleForPoint(pointId: Int?, callback: (() -> Unit)? = null) {
         val url = if (pointId != null) {
             "${ApiService.BASE_URL}/api/emp/time_rule?point_id=$pointId"
         } else {
@@ -727,6 +731,7 @@ class ClockInSample : Fragment() {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("ClockInSample", "获取时间规则失败: ${e.message}")
+                callback?.invoke()
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -748,6 +753,7 @@ class ClockInSample : Fragment() {
                         Log.e("ClockInSample", "解析时间规则失败: ${e.message}")
                     }
                 }
+                callback?.invoke()
             }
         })
     }
@@ -844,17 +850,12 @@ class ClockInSample : Fragment() {
                             openCamera()
                         } else {
                             // 不需要人脸，走原有早退确认流程
-                            if (timeRule == null) loadTimeRuleForPoint(null)
-                            if (isEarlyLeave()) {
-                                showEarlyLeaveConfirmDialog { confirmed ->
-                                    if (confirmed) {
-                                        submitCheck(2, lat, lng, addr ?: "", "", true)
-                                    } else {
-                                        isClockInProgress = false
-                                    }
+                            if (timeRule == null) {
+                                loadTimeRuleForPoint(null) {
+                                    checkEarlyLeaveAndSubmit(2, lat, lng, addr ?: "")
                                 }
                             } else {
-                                submitCheck(2, lat, lng, addr ?: "", "", false)
+                                checkEarlyLeaveAndSubmit(2, lat, lng, addr ?: "")
                             }
                         }
                     } else {
@@ -877,6 +878,20 @@ class ClockInSample : Fragment() {
         }
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
         takePictureLauncher.launch(intent)
+    }
+
+    private fun checkEarlyLeaveAndSubmit(checkType: Int, lat: Double, lng: Double, addr: String) {
+        if (isEarlyLeave()) {
+            showEarlyLeaveConfirmDialog { confirmed ->
+                if (confirmed) {
+                    submitCheck(checkType, lat, lng, addr, "", true)
+                } else {
+                    isClockInProgress = false
+                }
+            }
+        } else {
+            submitCheck(checkType, lat, lng, addr, "", false)
+        }
     }
 
     private fun bitmapToBase64(bitmap: Bitmap): String {
