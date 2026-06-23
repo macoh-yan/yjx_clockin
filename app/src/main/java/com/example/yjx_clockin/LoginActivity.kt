@@ -14,6 +14,7 @@ import com.example.yjx_clockin.databinding.ActivityLoginBinding
 import com.example.yjx_clockin.utils.ApiService
 import com.example.yjx_clockin.utils.Constants
 import com.example.yjx_clockin.utils.DeviceUtils
+import com.example.yjx_clockin.utils.EncryptionUtils
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
@@ -60,7 +61,7 @@ class LoginActivity : AppCompatActivity() {
 
         if (isRemembered && !savedEmpId.isNullOrEmpty() && !savedPassword.isNullOrEmpty()) {
             binding.etEmpId.setText(savedEmpId)
-            binding.etPassword.setText(savedPassword)
+            binding.etPassword.setText(EncryptionUtils.decrypt(savedPassword))
             binding.cbRemember.isChecked = true
         }
     }
@@ -70,7 +71,7 @@ class LoginActivity : AppCompatActivity() {
         val editor = prefs.edit()
         if (binding.cbRemember.isChecked) {
             editor.putString(Constants.KEY_SAVED_EMP_ID, empId)
-            editor.putString(Constants.KEY_SAVED_PASSWORD, password)
+            editor.putString(Constants.KEY_SAVED_PASSWORD, EncryptionUtils.encrypt(password))
             editor.putBoolean(Constants.KEY_REMEMBER_PASSWORD, true)
         } else {
             editor.remove(Constants.KEY_SAVED_EMP_ID)

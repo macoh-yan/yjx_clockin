@@ -167,17 +167,21 @@ class ClockInSample : Fragment() {
 
                     // 下班打卡需要早退确认
                     if (checkType == 2) {
-                        if (timeRule == null) loadTimeRuleForPoint(null)
-                        if (isEarlyLeave()) {
-                            showEarlyLeaveConfirmDialog { confirmed ->
-                                if (confirmed) {
-                                    submitCheck(checkType, lat, lng, addr, base64, true)
+                        // 使用回调确保时间规则加载完成后再判断早退
+                        loadTimeRuleForPoint(null) {
+                            activity?.runOnUiThread {
+                                if (isEarlyLeave()) {
+                                    showEarlyLeaveConfirmDialog { confirmed ->
+                                        if (confirmed) {
+                                            submitCheck(checkType, lat, lng, addr, base64, true)
+                                        } else {
+                                            isClockInProgress = false
+                                        }
+                                    }
                                 } else {
-                                    isClockInProgress = false
+                                    submitCheck(checkType, lat, lng, addr, base64, false)
                                 }
                             }
-                        } else {
-                            submitCheck(checkType, lat, lng, addr, base64, false)
                         }
                     } else {
                         // 上班打卡直接提交
@@ -219,7 +223,9 @@ class ClockInSample : Fragment() {
             3 -> "星期二"
             4 -> "星期三"
             5 -> "星期四"
-            else -> "星期六"
+            6 -> "星期五"
+            7 -> "星期六"
+            else -> "未知"
         }
         tvDate.text = "今天是 $year 年 $month 月 $day 日 $week"
 
@@ -717,7 +723,7 @@ class ClockInSample : Fragment() {
         return r * c
     }
 
-    private fun loadTimeRuleForPoint(pointId: Int?) {
+    private fun loadTimeRuleForPoint(pointId: Int?, callback: (() -> Unit)? = null) {
         val url = if (pointId != null) {
             "${ApiService.BASE_URL}/api/emp/time_rule?point_id=$pointId"
         } else {
@@ -727,6 +733,7 @@ class ClockInSample : Fragment() {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("ClockInSample", "获取时间规则失败: ${e.message}")
+                callback?.invoke()
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -748,6 +755,7 @@ class ClockInSample : Fragment() {
                         Log.e("ClockInSample", "解析时间规则失败: ${e.message}")
                     }
                 }
+                callback?.invoke()
             }
         })
     }
@@ -844,17 +852,21 @@ class ClockInSample : Fragment() {
                             openCamera()
                         } else {
                             // 不需要人脸，走原有早退确认流程
-                            if (timeRule == null) loadTimeRuleForPoint(null)
-                            if (isEarlyLeave()) {
-                                showEarlyLeaveConfirmDialog { confirmed ->
-                                    if (confirmed) {
-                                        submitCheck(2, lat, lng, addr ?: "", "", true)
+                            // 使用回调确保时间规则加载完成后再判断早退
+                            loadTimeRuleForPoint(null) {
+                                activity?.runOnUiThread {
+                                    if (isEarlyLeave()) {
+                                        showEarlyLeaveConfirmDialog { confirmed ->
+                                            if (confirmed) {
+                                                submitCheck(2, lat, lng, addr ?: "", "", true)
+                                            } else {
+                                                isClockInProgress = false
+                                            }
+                                        }
                                     } else {
-                                        isClockInProgress = false
+                                        submitCheck(2, lat, lng, addr ?: "", "", false)
                                     }
                                 }
-                            } else {
-                                submitCheck(2, lat, lng, addr ?: "", "", false)
                             }
                         }
                     } else {
